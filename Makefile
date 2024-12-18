@@ -1,2 +1,2 @@
 run: nim.cpp
-	g++ -o nim nim.cpp -lcurses
+	g++ -g -o nim nim.cpp -L./ -lraylib 

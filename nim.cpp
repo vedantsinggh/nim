@@ -1,101 +1,99 @@
-#include <ncurses.h>
+#include "raylib.h"
 #include <string>
 #include <vector>
 
-using namespace std;
-
-class TextEditor {
-public:
-    TextEditor() {
-        initscr();            
-        raw();                
-        keypad(stdscr, TRUE);
-        noecho();             
-        curs_set(1);          
-
-        cursor_x = 0;
-        cursor_y = 0;
-        text_lines.push_back("");
-    }
-
-    ~TextEditor() {
-        endwin();
-    }
-
-    void run() {
-        int ch;
-        while ((ch = getch()) != 27) { 
-            process_input(ch);
-            render();
-        }
-    }
-
-private:
-    int cursor_x, cursor_y;
-    vector<string> text_lines;
-
-    void process_input(int ch) {
-        switch (ch) {
-            case KEY_UP:
-                if (cursor_y > 0) {
-                    cursor_y--;
-                }
-                break;
-            case KEY_DOWN:
-                if (cursor_y < text_lines.size() - 1) {
-                    cursor_y++;
-                }
-                break;
-            case KEY_LEFT:
-                if (cursor_x > 0) {
-                    cursor_x--;
-                }
-                break;
-            case KEY_RIGHT:
-                if (cursor_x < text_lines[cursor_y].length()) {
-                    cursor_x++;
-                }
-                break;
-            case 10: 
-                text_lines.insert(text_lines.begin() + cursor_y + 1, "");
-                cursor_y++;
-                cursor_x = 0;
-                break;
-            case 127: 
-                if (cursor_x > 0) {
-                    text_lines[cursor_y].erase(cursor_x - 1, 1);
-                    cursor_x--;
-                } else if (cursor_y > 0) {
-                    cursor_x = text_lines[cursor_y - 1].length();
-                    text_lines[cursor_y - 1] += text_lines[cursor_y];
-                    text_lines.erase(text_lines.begin() + cursor_y);
-                    cursor_y--;
-                }
-                break;
-            default:
-                if (ch >= 32 && ch <= 126) { 
-                    text_lines[cursor_y].insert(cursor_x, 1, (char)ch);
-                    cursor_x++;
-                }
-                break;
-        }
-    }
-
-    void render() {
-        clear(); 
-
-        for (int i = 0; i < text_lines.size(); ++i) {
-            mvprintw(i, 0, "%s", text_lines[i].c_str());
-        }
-
-        move(cursor_y, cursor_x);
-
-        refresh(); 
-    }
-};
-
 int main() {
-    TextEditor editor;
-    editor.run();
+    const int screenWidth = 800;
+    const int screenHeight = 600;
+    InitWindow(screenWidth, screenHeight, "NIM Text Editor");
+
+    std::vector<std::string> text; 
+    text.push_back("");
+
+    int fontSize = 35;
+    int cursorX = 0; 
+    int cursorY = 0; 
+    float blinkTime = 0.0f;
+    bool showCursor = true;
+
+    Font customFont = LoadFont("./font.ttf");
+    int sizeY = fontSize + 5; 
+
+    SetTargetFPS(60);
+
+    while (!WindowShouldClose()) {
+        blinkTime += GetFrameTime();
+        if (blinkTime >= 0.5f) {
+            showCursor = !showCursor;
+            blinkTime = 0.0f;
+        }
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            if (cursorX > 0) {
+                text[cursorY].erase(cursorX - 1, 1);
+                cursorX--;
+            } else if (cursorY > 0) {
+                cursorX = text[cursorY - 1].size();
+                text[cursorY - 1] += text[cursorY];
+                text.erase(text.begin() + cursorY);
+                cursorY--;
+            }
+        }
+        if (IsKeyPressed(KEY_ENTER)) {
+            std::string remaining = text[cursorY].substr(cursorX);
+            text[cursorY] = text[cursorY].substr(0, cursorX);
+            text.insert(text.begin() + cursorY + 1, remaining);
+            cursorX = 0;
+            cursorY++;
+        }
+        if (IsKeyPressed(KEY_LEFT)) {
+            if (cursorX > 0) {
+                cursorX--;
+            } else if (cursorY > 0) {
+                cursorY--;
+                cursorX = text[cursorY].size();
+            }
+        } else if (IsKeyPressed(KEY_RIGHT)) {
+            if (cursorX < text[cursorY].size()) {
+                cursorX++;
+            } else if (cursorY < text.size() - 1) {
+                cursorY++;
+                cursorX = 0;
+            }
+        } else if (IsKeyPressed(KEY_UP)) {
+            if (cursorY > 0) {
+                cursorY--;
+                cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
+            }
+        } else if (IsKeyPressed(KEY_DOWN)) {
+            if (cursorY < text.size() - 1) {
+                cursorY++;
+                cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
+            }
+        }
+        int key = GetCharPressed();
+        while (key > 0) {
+            if (key >= 32 && key <= 126) { 
+                text[cursorY].insert(cursorX, 1, (char)key);
+                cursorX++;
+            }
+            key = GetCharPressed();
+        }
+        BeginDrawing();
+        ClearBackground(BLACK);
+
+        for (int i = 0; i < text.size(); i++) {
+            DrawTextEx(customFont, text[i].c_str(), (Vector2){20, i * sizeY}, fontSize, 1, WHITE);
+        }
+
+		if (showCursor) {
+			float cursorDrawX = MeasureTextEx(customFont, text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
+			float cursorDrawY = cursorY * sizeY;
+			DrawRectangle(20 + cursorDrawX, cursorDrawY + 4, 2, fontSize - 8, WHITE); 
+		}
+        EndDrawing();
+    }
+
+    CloseWindow();
+
     return 0;
 }
