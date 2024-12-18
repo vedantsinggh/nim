@@ -3,14 +3,15 @@
 #include <vector>
 
 int main() {
-    const int screenWidth = 800;
-    const int screenHeight = 600;
+    int screenWidth = 800;
+    int screenHeight = 600;
+ 	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "nim");
 
     std::vector<std::string> text;
     text.push_back("");
 
-    int fontSize = 22; 
+    int fontSize = 22;
     int cursorX = 0;
     int cursorY = 0;
     float blinkTime = 0.0f;
@@ -21,12 +22,14 @@ int main() {
     float backspaceTime = 0.0f;
     bool backspaceHeld = false;
 
-    Font codeFont = LoadFontEx("font.ttf", fontSize, 0, 0); 
+    Font codeFont = LoadFontEx("font.ttf", fontSize, 0, 0);
     int lineHeight = fontSize + 5;
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
+		screenWidth = GetScreenWidth();
+		screenHeight = GetScreenHeight();
         blinkTime += GetFrameTime();
         if (blinkTime >= 0.5f) {
             showCursor = !showCursor;
@@ -88,28 +91,37 @@ int main() {
                 cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
             }
         }
-		
 
+        if (IsKeyPressed(KEY_F11)) {
+            isFullscreen = !isFullscreen;
+            if (isFullscreen) {
+                ToggleFullscreen();
+            } else {
+                SetWindowSize(screenWidth, screenHeight);
+                SetWindowPosition(100, 100);
+            }
+        }
 
-		if (IsKeyPressed(KEY_F11)) {
-			isFullscreen = !isFullscreen;
-			if (isFullscreen) {
-				ToggleFullscreen();
-			} else {
-				SetWindowSize(screenWidth, screenHeight);
-				SetWindowPosition(100, 100);
-			}
-		}
-
-		if (IsKeyPressed(KEY_F10)) {
-			MinimizeWindow();
-		}
+        if (IsKeyPressed(KEY_F10)) {
+            MinimizeWindow();
+        }
 
         int key = GetCharPressed();
         while (key > 0) {
             if (key >= 32 && key <= 126) {
                 text[cursorY].insert(cursorX, 1, (char)key);
                 cursorX++;
+
+                float textWidth = MeasureTextEx(codeFont, text[cursorY].c_str(), fontSize, 1).x;
+
+                // If the text exceeds screen width, move to the next line
+                if (textWidth > screenWidth - 50) {
+                    std::string remaining = text[cursorY].substr(cursorX);
+                    text[cursorY] = text[cursorY].substr(0, cursorX);
+                    text.insert(text.begin() + cursorY + 1, remaining);
+                    cursorY++;
+                    cursorX = 0;
+                }
             }
             key = GetCharPressed();
         }
@@ -130,6 +142,12 @@ int main() {
         if (showCursor) {
             float cursorDrawX = MeasureTextEx(codeFont, text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
             float cursorDrawY = cursorY * lineHeight;
+            if (cursorDrawX > screenWidth - 50) {
+                cursorX--;
+                if (cursorX < 0) {
+                    cursorX = 0;
+                }
+            }
             DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 4, WHITE);
         }
 
