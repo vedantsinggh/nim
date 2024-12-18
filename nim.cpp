@@ -16,6 +16,8 @@ int main() {
     float blinkTime = 0.0f;
     bool showCursor = true;
 
+    bool isFullscreen = false;
+
     float backspaceTime = 0.0f;
     bool backspaceHeld = false;
 
@@ -86,6 +88,22 @@ int main() {
                 cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
             }
         }
+		
+
+
+		if (IsKeyPressed(KEY_F11)) {
+			isFullscreen = !isFullscreen;
+			if (isFullscreen) {
+				ToggleFullscreen();
+			} else {
+				SetWindowSize(screenWidth, screenHeight);
+				SetWindowPosition(100, 100);
+			}
+		}
+
+		if (IsKeyPressed(KEY_F10)) {
+			MinimizeWindow();
+		}
 
         int key = GetCharPressed();
         while (key > 0) {
