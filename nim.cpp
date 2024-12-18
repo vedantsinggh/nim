@@ -5,19 +5,22 @@
 int main() {
     const int screenWidth = 800;
     const int screenHeight = 600;
-    InitWindow(screenWidth, screenHeight, "NIM Text Editor");
+    InitWindow(screenWidth, screenHeight, "nim");
 
-    std::vector<std::string> text; 
+    std::vector<std::string> text;
     text.push_back("");
 
-    int fontSize = 35;
-    int cursorX = 0; 
-    int cursorY = 0; 
+    int fontSize = 22; 
+    int cursorX = 0;
+    int cursorY = 0;
     float blinkTime = 0.0f;
     bool showCursor = true;
 
-    Font customFont = LoadFont("./font.ttf");
-    int sizeY = fontSize + 5; 
+    float backspaceTime = 0.0f;
+    bool backspaceHeld = false;
+
+    Font codeFont = LoadFontEx("font.ttf", fontSize, 0, 0); 
+    int lineHeight = fontSize + 5;
 
     SetTargetFPS(60);
 
@@ -27,17 +30,26 @@ int main() {
             showCursor = !showCursor;
             blinkTime = 0.0f;
         }
-        if (IsKeyPressed(KEY_BACKSPACE)) {
-            if (cursorX > 0) {
-                text[cursorY].erase(cursorX - 1, 1);
-                cursorX--;
-            } else if (cursorY > 0) {
-                cursorX = text[cursorY - 1].size();
-                text[cursorY - 1] += text[cursorY];
-                text.erase(text.begin() + cursorY);
-                cursorY--;
+
+        if (IsKeyDown(KEY_BACKSPACE)) {
+            backspaceTime += GetFrameTime();
+            if (backspaceTime > 0.2f || !backspaceHeld) {
+                if (cursorX > 0) {
+                    text[cursorY].erase(cursorX - 1, 1);
+                    cursorX--;
+                } else if (cursorY > 0) {
+                    cursorX = text[cursorY - 1].size();
+                    text[cursorY - 1] += text[cursorY];
+                    text.erase(text.begin() + cursorY);
+                    cursorY--;
+                }
+                backspaceHeld = true;
             }
+        } else {
+            backspaceTime = 0.0f;
+            backspaceHeld = false;
         }
+
         if (IsKeyPressed(KEY_ENTER)) {
             std::string remaining = text[cursorY].substr(cursorX);
             text[cursorY] = text[cursorY].substr(0, cursorX);
@@ -45,17 +57,21 @@ int main() {
             cursorX = 0;
             cursorY++;
         }
+
+        if (IsKeyPressed(KEY_TAB)) {
+            text[cursorY].insert(cursorX, "    ");
+            cursorX += 4;
+        }
+
         if (IsKeyPressed(KEY_LEFT)) {
-            if (cursorX > 0) {
-                cursorX--;
-            } else if (cursorY > 0) {
+            if (cursorX > 0) cursorX--;
+            else if (cursorY > 0) {
                 cursorY--;
                 cursorX = text[cursorY].size();
             }
         } else if (IsKeyPressed(KEY_RIGHT)) {
-            if (cursorX < text[cursorY].size()) {
-                cursorX++;
-            } else if (cursorY < text.size() - 1) {
+            if (cursorX < text[cursorY].size()) cursorX++;
+            else if (cursorY < text.size() - 1) {
                 cursorY++;
                 cursorX = 0;
             }
@@ -70,29 +86,39 @@ int main() {
                 cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
             }
         }
+
         int key = GetCharPressed();
         while (key > 0) {
-            if (key >= 32 && key <= 126) { 
+            if (key >= 32 && key <= 126) {
                 text[cursorY].insert(cursorX, 1, (char)key);
                 cursorX++;
             }
             key = GetCharPressed();
         }
+
         BeginDrawing();
-        ClearBackground(BLACK);
+        ClearBackground(DARKGRAY);
+
+        DrawRectangle(0, cursorY * lineHeight, screenWidth, lineHeight, (Color){50, 50, 50, 255});
 
         for (int i = 0; i < text.size(); i++) {
-            DrawTextEx(customFont, text[i].c_str(), (Vector2){20, i * sizeY}, fontSize, 1, WHITE);
+            DrawTextEx(codeFont, TextFormat("%4d", i + 1), (Vector2){ 5, i * lineHeight}, fontSize, 1, GRAY);
         }
 
-		if (showCursor) {
-			float cursorDrawX = MeasureTextEx(customFont, text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
-			float cursorDrawY = cursorY * sizeY;
-			DrawRectangle(20 + cursorDrawX, cursorDrawY + 4, 2, fontSize - 8, WHITE); 
-		}
+        for (int i = 0; i < text.size(); i++) {
+            DrawTextEx(codeFont, text[i].c_str(), (Vector2){50, i * lineHeight}, fontSize, 1, LIGHTGRAY);
+        }
+
+        if (showCursor) {
+            float cursorDrawX = MeasureTextEx(codeFont, text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
+            float cursorDrawY = cursorY * lineHeight;
+            DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 4, WHITE);
+        }
+
         EndDrawing();
     }
 
+    UnloadFont(codeFont);
     CloseWindow();
 
     return 0;
