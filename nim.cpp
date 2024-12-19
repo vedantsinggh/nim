@@ -68,6 +68,9 @@ int main() {
                     dragStartY = mouseY;
                 }
             }
+			if(mouseX < screenWidth - 10){
+				cursorY = scrollOffset + (int)(mouseY / lineHeight);
+			}
         }
 
         if (scrollbarDragging) {
@@ -237,6 +240,7 @@ int main() {
         EndDrawing();
     }
 
+	file.close();
     UnloadFont(codeFont);
     CloseWindow();
 
