@@ -8,10 +8,11 @@
 int main() {
     int screenWidth = 800;
     int screenHeight = 600;
+    SetTraceLogLevel(LOG_NONE);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, "nim");
     SetExitKey(KEY_NULL);
-    
+
     std::vector<std::string> text;
 
     std::ifstream file("./nim.cpp");
@@ -40,6 +41,11 @@ int main() {
     int scrollOffset = 0;
     int maxVisibleLines = screenHeight / lineHeight;
 
+    bool scrollbarDragging = false;
+    float scrollbarY = 0;
+    float scrollbarHeight = 0;
+    float dragStartY = 0;
+
     SetTargetFPS(40);
 
     while (!WindowShouldClose()) {
@@ -47,18 +53,48 @@ int main() {
         screenHeight = GetScreenHeight();
         maxVisibleLines = screenHeight / lineHeight;
 
-        // Blink cursor
         blinkTime += GetFrameTime();
         if (blinkTime >= 0.5f) {
             showCursor = !showCursor;
             blinkTime = 0.0f;
         }
 
-        // Handle scrolling
-        scrollOffset -= GetMouseWheelMove() * 3;
-        scrollOffset = std::clamp(scrollOffset, 0, std::max(0, (int)text.size() - maxVisibleLines));
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            float mouseX = GetMouseX();
+            float mouseY = GetMouseY();
+            if (mouseX > screenWidth - 10 && mouseX < screenWidth) {
+                if (mouseY > scrollbarY && mouseY < scrollbarY + scrollbarHeight) {
+                    scrollbarDragging = true;
+                    dragStartY = mouseY;
+                }
+            }
+        }
 
-        // Update input logic for backspace and arrow keys (unchanged)
+        if (scrollbarDragging) {
+            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+                scrollbarDragging = false;
+            } else {
+                float mouseY = GetMouseY();
+                float deltaY = mouseY - dragStartY;
+                dragStartY = mouseY;
+                float scrollRatio = (float)text.size() / screenHeight;
+                scrollOffset = std::clamp(scrollOffset + (int)(deltaY * scrollRatio), 0, std::max(0, (int)text.size() - maxVisibleLines));
+            }
+        }
+
+		//scrollOffset -= GetMouseWheelMove() * 3;
+        //scrollOffset = std::clamp(scrollOffset, 0, std::max(0, (int)text.size() - maxVisibleLines));
+		cursorY -= (int)GetMouseWheelMove() * 3;
+		if (cursorY < 0) cursorY = 0;
+		if (cursorY > text.size()) cursorY = text.size() - 1;
+
+
+        if (cursorY < scrollOffset && !scrollbarDragging) {
+            scrollOffset = cursorY;
+        } else if (cursorY >= scrollOffset + maxVisibleLines  && !scrollbarDragging) {
+            scrollOffset = cursorY - maxVisibleLines + 1;
+        }
+
         if (IsKeyDown(KEY_BACKSPACE)) {
             backspaceTime += GetFrameTime();
             showCursor = true;
@@ -79,9 +115,8 @@ int main() {
             backspaceHeld = false;
         }
 
-        // Arrow key handling (unchanged)
-		if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
-			showCursor = true;
+        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
+            showCursor = true;
             arrowTime += GetFrameTime();
             if (arrowTime > keyHeldTime || !arrowHeld) {
                 if (IsKeyDown(KEY_LEFT)) {
@@ -113,6 +148,7 @@ int main() {
             arrowTime = 0.0f;
             arrowHeld = false;
         }
+
         if (IsKeyPressed(KEY_ENTER)) {
             showCursor = true;
             std::string remaining = text[cursorY].substr(cursorX);
@@ -144,7 +180,7 @@ int main() {
             MinimizeWindow();
         }
 
-		int key = GetCharPressed();
+        int key = GetCharPressed();
         while (key > 0) {
             showCursor = true;
             if (key >= 32 && key <= 126) {
@@ -164,15 +200,23 @@ int main() {
             }
             key = GetCharPressed();
         }
+
         BeginDrawing();
         ClearBackground(DARKGRAY);
 
         DrawRectangle(0, 0, screenWidth, screenHeight, DARKGRAY);
 
+        scrollbarHeight = (float)screenHeight * maxVisibleLines / text.size();
+        scrollbarY = (float)scrollOffset / text.size() * screenHeight;
+
         int startLine = scrollOffset;
         int endLine = std::min(startLine + maxVisibleLines, (int)text.size());
 
         for (int i = startLine; i < endLine; i++) {
+            if (i == cursorY) {
+                DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60, lineHeight, DARKBLUE);
+            }
+
             DrawTextEx(codeFont, TextFormat("%4d", i + 1), 
                        (Vector2){5, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, GRAY);
             DrawTextEx(codeFont, text[i].c_str(), 
@@ -185,11 +229,7 @@ int main() {
             DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 4, WHITE);
         }
 
-        // Draw scroll bar
         if (text.size() > maxVisibleLines) {
-            float scrollbarHeight = (float)screenHeight * maxVisibleLines / text.size();
-            float scrollbarY = (float)scrollOffset / text.size() * screenHeight;
-
             DrawRectangle(screenWidth - 10, 0, 10, screenHeight, (Color){50, 50, 50, 255});
             DrawRectangle(screenWidth - 10, scrollbarY, 10, scrollbarHeight, LIGHTGRAY);
         }
