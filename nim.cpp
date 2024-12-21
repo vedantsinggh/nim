@@ -5,6 +5,12 @@
 #include <iostream>
 #include <algorithm>
 
+int executeCommand(std::string command){
+	std::cout << "executing " << command << "\n";
+	return 0;
+}
+
+
 int main() {
     int screenWidth = 800;
     int screenHeight = 600;
@@ -13,9 +19,11 @@ int main() {
     InitWindow(screenWidth, screenHeight, "nim");
     SetExitKey(KEY_NULL);
 
+	std::string f = "\n";
+
     std::vector<std::string> text;
 
-    std::ifstream file("./nim.cpp");
+    std::ifstream file("./igvc.txt");
     std::string line = "";
     while (std::getline(file, line)) {
         text.push_back(line);
@@ -45,6 +53,9 @@ int main() {
     float scrollbarY = 0;
     float scrollbarHeight = 0;
     float dragStartY = 0;
+
+	bool isCommandPallateOpen = false;
+	std::string command = "";
 
     SetTargetFPS(40);
 
@@ -85,8 +96,6 @@ int main() {
             }
         }
 
-		//scrollOffset -= GetMouseWheelMove() * 3;
-        //scrollOffset = std::clamp(scrollOffset, 0, std::max(0, (int)text.size() - maxVisibleLines));
 		cursorY -= (int)GetMouseWheelMove() * 3;
 		if (cursorY < 0) cursorY = 0;
 		if (cursorY > text.size()) cursorY = text.size() - 1;
@@ -97,101 +106,123 @@ int main() {
         } else if (cursorY >= scrollOffset + maxVisibleLines  && !scrollbarDragging) {
             scrollOffset = cursorY - maxVisibleLines + 1;
         }
+		
+		if (IsKeyPressed(KEY_ESCAPE)){
+			isCommandPallateOpen = !isCommandPallateOpen;
+			command = "";
+		}
 
-        if (IsKeyDown(KEY_BACKSPACE)) {
-            backspaceTime += GetFrameTime();
-            showCursor = true;
-            if (backspaceTime > keyHeldTime || !backspaceHeld) {
-                if (cursorX > 0) {
-                    text[cursorY].erase(cursorX - 1, 1);
-                    cursorX--;
-                } else if (cursorY > 0) {
-                    cursorX = text[cursorY - 1].size();
-                    text[cursorY - 1] += text[cursorY];
-                    text.erase(text.begin() + cursorY);
-                    cursorY--;
-                }
-                backspaceHeld = true;
-            }
-        } else {
-            backspaceTime = 0.0f;
-            backspaceHeld = false;
-        }
+	if (IsKeyDown(KEY_BACKSPACE)) {
 
-        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
-            showCursor = true;
-            arrowTime += GetFrameTime();
-            if (arrowTime > keyHeldTime || !arrowHeld) {
-                if (IsKeyDown(KEY_LEFT)) {
-                    if (cursorX > 0) cursorX--;
-                    else if (cursorY > 0) {
-                        cursorY--;
-                        cursorX = text[cursorY].size();
-                    }
-                } else if (IsKeyDown(KEY_RIGHT)) {
-                    if (cursorX < text[cursorY].size()) cursorX++;
-                    else if (cursorY < text.size() - 1) {
-                        cursorY++;
-                        cursorX = 0;
-                    }
-                } else if (IsKeyDown(KEY_UP)) {
-                    if (cursorY > 0) {
-                        cursorY--;
-                        cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
-                    }
-                } else if (IsKeyDown(KEY_DOWN)) {
-                    if (cursorY < text.size() - 1) {
-                        cursorY++;
-                        cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
-                    }
-                }
-                arrowHeld = true;
-            }
-        } else {
-            arrowTime = 0.0f;
-            arrowHeld = false;
-        }
+		backspaceTime += GetFrameTime();
+		showCursor = true;
+		if (backspaceTime > keyHeldTime || !backspaceHeld) {
+			if(isCommandPallateOpen){
+				if (command.length() > 0) command.erase(command.length() - 1, 1);
+			}
+			else {
+				if (cursorX > 0) {
+					text[cursorY].erase(cursorX - 1, 1);
+					cursorX--;
+				} else if (cursorY > 0) {
+					cursorX = text[cursorY - 1].size();
+					text[cursorY - 1] += text[cursorY];
+					text.erase(text.begin() + cursorY);
+					cursorY--;
+				}
+			}
+			backspaceHeld = true;
+		}
 
-        if (IsKeyPressed(KEY_ENTER)) {
-            showCursor = true;
-            std::string remaining = text[cursorY].substr(cursorX);
-            text[cursorY] = text[cursorY].substr(0, cursorX);
-            text.insert(text.begin() + cursorY + 1, remaining);
-            cursorX = 0;
-            cursorY++;
-        }
+	} else {
+		backspaceTime = 0.0f;
+		backspaceHeld = false;
+	}
 
-        if (IsKeyPressed(KEY_TAB)) {
-            showCursor = true;
-            text[cursorY].insert(cursorX, "    ");
-            cursorX += 4;
-        }
+	if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
+		showCursor = true;
+		arrowTime += GetFrameTime();
+		if (arrowTime > keyHeldTime || !arrowHeld) {
+			if (IsKeyDown(KEY_LEFT)) {
+				if (cursorX > 0) cursorX--;
+				else if (cursorY > 0) {
+					cursorY--;
+					cursorX = text[cursorY].size();
+				}
+			} else if (IsKeyDown(KEY_RIGHT)) {
+				if (cursorX < text[cursorY].size()) cursorX++;
+				else if (cursorY < text.size() - 1) {
+					cursorY++;
+					cursorX = 0;
+				}
+			} else if (IsKeyDown(KEY_UP)) {
+				if (cursorY > 0) {
+					cursorY--;
+					cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
+				}
+			} else if (IsKeyDown(KEY_DOWN)) {
+				if (cursorY < text.size() - 1) {
+					cursorY++;
+					cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
+				}
+			}
+			arrowHeld = true;
+		}
+	} else {
+		arrowTime = 0.0f;
+		arrowHeld = false;
+	}
 
-        if (IsKeyPressed(KEY_F11)) {
-            showCursor = true;
-            isFullscreen = !isFullscreen;
-            if (isFullscreen) {
-                ToggleFullscreen();
-            } else {
-                SetWindowSize(screenWidth, screenHeight);
-                SetWindowPosition(100, 100);
-            }
-        }
+	if (IsKeyPressed(KEY_ENTER)) {
 
-        if (IsKeyPressed(KEY_F10)) {
-            showCursor = true;
-            MinimizeWindow();
-        }
+		if(isCommandPallateOpen){
+			executeCommand(command);
+			command = "";
+			isCommandPallateOpen = false;
+		}else{
+			showCursor = true;
+			std::string remaining = text[cursorY].substr(cursorX);
+			text[cursorY] = text[cursorY].substr(0, cursorX);
+			text.insert(text.begin() + cursorY + 1, remaining);
+			cursorX = 0;
+			cursorY++;
+		}
+	}
 
-        int key = GetCharPressed();
-        while (key > 0) {
-            showCursor = true;
-            if (key >= 32 && key <= 126) {
-                showCursor = true;
-                text[cursorY].insert(cursorX, 1, (char)key);
-                cursorX++;
+	if (IsKeyPressed(KEY_TAB)) {
+		showCursor = true;
+		text[cursorY].insert(cursorX, "    ");
+		cursorX += 4;
+	}
 
-                float textWidth = MeasureTextEx(codeFont, text[cursorY].c_str(), fontSize, 1).x;
+	if (IsKeyPressed(KEY_F11)) {
+		showCursor = true;
+		isFullscreen = !isFullscreen;
+		if (isFullscreen) {
+			ToggleFullscreen();
+		} else {
+			SetWindowSize(screenWidth, screenHeight);
+			SetWindowPosition(100, 100);
+		}
+	}
+
+	if (IsKeyPressed(KEY_F10)) {
+		showCursor = true;
+		MinimizeWindow();
+	}
+
+	int key = GetCharPressed();
+	while (key > 0) {
+		showCursor = true;
+		if (key >= 32 && key <= 126) {
+			showCursor = true;
+			if(isCommandPallateOpen){
+				command.insert(command.length(), 1, (char)key);
+			}else {
+				text[cursorY].insert(cursorX, 1, (char)key);
+				cursorX++;
+			}
+			float textWidth = MeasureTextEx(codeFont, text[cursorY].c_str(), fontSize, 1).x;
 
                 if (textWidth > screenWidth - 50) {
                     std::string remaining = text[cursorY].substr(cursorX);
@@ -205,9 +236,9 @@ int main() {
         }
 
         BeginDrawing();
-        ClearBackground(DARKGRAY);
+        ClearBackground((Color) {1, 31, 38 , 255});
 
-        DrawRectangle(0, 0, screenWidth, screenHeight, DARKGRAY);
+        DrawRectangle(0, 0, screenWidth, screenHeight, (Color) {1, 31, 38 , 255});
 
         scrollbarHeight = (float)screenHeight * maxVisibleLines / text.size();
         scrollbarY = (float)scrollOffset / text.size() * screenHeight;
@@ -217,25 +248,33 @@ int main() {
 
         for (int i = startLine; i < endLine; i++) {
             if (i == cursorY) {
-                DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60, lineHeight, DARKBLUE);
+                DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60, lineHeight, (Color){2 , 81, 89, 255});
             }
 
             DrawTextEx(codeFont, TextFormat("%4d", i + 1), 
                        (Vector2){5, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, GRAY);
             DrawTextEx(codeFont, text[i].c_str(), 
-                       (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, LIGHTGRAY);
+                       (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1,  LIGHTGRAY);
         }
 
-        if (showCursor) {
+        if (showCursor && !isCommandPallateOpen) {
             float cursorDrawX = MeasureTextEx(codeFont, text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
             float cursorDrawY = (cursorY - scrollOffset) * lineHeight;
             DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 4, WHITE);
         }
 
         if (text.size() > maxVisibleLines) {
-            DrawRectangle(screenWidth - 10, 0, 10, screenHeight, (Color){50, 50, 50, 255});
+            DrawRectangle(screenWidth - 10, 0, 10, screenHeight, (Color){2, 81, 89, 255});
             DrawRectangle(screenWidth - 10, scrollbarY, 10, scrollbarHeight, LIGHTGRAY);
         }
+
+		if (isCommandPallateOpen){
+
+			Rectangle box = {(float)(screenWidth / 2 - 300), (float)(30), 600.0f, (float)fontSize};
+			DrawRectangleRounded(box, 0.1f, 10, LIGHTGRAY);
+            DrawTextEx(codeFont,command.c_str(), 
+                       (Vector2){10 + screenWidth/2 - 300.0f, 30.0f}, fontSize, 1,  BLACK);
+		}
 
         EndDrawing();
     }
