@@ -5,8 +5,8 @@
 #include <iostream>
 #include <algorithm>
 
-
 struct State {
+	std::string name; 
 	std::string filePath;
     std::vector<std::string> text;
 	bool isSaved;
@@ -15,10 +15,25 @@ struct State {
 
 State state{
 	"",
+	"",
 	std::vector<std::string>(),
 	false,
 	false,
 };
+
+int save(std::string name){
+	if (name == ""){
+		name = state.filePath;
+	}
+
+	std::ofstream file(name,std::ios::out );
+	for(std::string line: state.text){
+		file << line << "\n";
+	}
+
+	return 0;
+
+}
 
 int openAndScanFile(std::string path){
 	if (path == ""){
@@ -50,12 +65,13 @@ int executeCommand(std::string command) {
 		}else {
 			cmd.push_back(c);
 		}
-		//handle edge cases
 	}
 
 	if (cmd == "open"){
 		std::cout << "opening " << command.substr(5) << "\n";
 		openAndScanFile(command.substr(5));
+	}else if("save"){
+		save("");
 	}else {
 		std::cout << "type properly bitch ass nigga\n";
 	}
@@ -63,7 +79,7 @@ int executeCommand(std::string command) {
 }
 
 
-int main() {
+int main(int argc, char* argv[]) {
     int screenWidth = 800;
     int screenHeight = 600;
     SetTraceLogLevel(LOG_NONE);
@@ -71,7 +87,11 @@ int main() {
     InitWindow(screenWidth, screenHeight, "nim");
     SetExitKey(KEY_NULL);
 
-	openAndScanFile("");
+	if(argc > 1){
+		openAndScanFile(argv[1]);
+	}else{
+		openAndScanFile("");
+	}
 
 
     int fontSize = 22;
@@ -306,7 +326,7 @@ int main() {
         DrawRectangle(screenWidth - 10, scrollbarY, 10, scrollbarHeight, WHITE);
 
         if (isCommandPallateOpen) {
-            DrawRectangle(0, screenHeight - lineHeight, screenWidth, lineHeight, BLACK);
+            DrawRectangle(0, screenHeight - lineHeight, screenWidth, lineHeight, MAROON );
             DrawTextEx(codeFont, command.c_str(), (Vector2){5, (float)(screenHeight - lineHeight + 2)}, fontSize, 1, LIGHTGRAY);
         }
 
