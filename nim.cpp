@@ -5,9 +5,61 @@
 #include <iostream>
 #include <algorithm>
 
-int executeCommand(std::string command){
-	std::cout << "executing " << command << "\n";
+
+struct State {
+	std::string filePath;
+    std::vector<std::string> text;
+	bool isSaved;
+	bool isCommandPallateOpen;
+};
+
+State state{
+	"",
+	std::vector<std::string>(),
+	false,
+	false,
+};
+
+int openAndScanFile(std::string path){
+	if (path == ""){
+		state.text.push_back("");
+		return 0;
+	}
+    std::ifstream file(path);
+	state.text.clear();
+    std::string line = "";
+    while (std::getline(file, line)) {
+        state.text.push_back(line);
+    }
+
+	if (state.text.size() == 0){
+		state.text.push_back("");
+	}
+
+	state.filePath = path;
+	file.close();
 	return 0;
+}
+
+
+int executeCommand(std::string command) {
+	std::string cmd = "";
+	for (char c : command){
+		if (c == 32){
+			break;
+		}else {
+			cmd.push_back(c);
+		}
+		//handle edge cases
+	}
+
+	if (cmd == "open"){
+		std::cout << "opening " << command.substr(5) << "\n";
+		openAndScanFile(command.substr(5));
+	}else {
+		std::cout << "type properly bitch ass nigga\n";
+	}
+    return 0;
 }
 
 
@@ -19,15 +71,8 @@ int main() {
     InitWindow(screenWidth, screenHeight, "nim");
     SetExitKey(KEY_NULL);
 
-	std::string f = "\n";
+	openAndScanFile("");
 
-    std::vector<std::string> text;
-
-    std::ifstream file("./igvc.txt");
-    std::string line = "";
-    while (std::getline(file, line)) {
-        text.push_back(line);
-    }
 
     int fontSize = 22;
     int cursorX = 0;
@@ -54,8 +99,8 @@ int main() {
     float scrollbarHeight = 0;
     float dragStartY = 0;
 
-	bool isCommandPallateOpen = false;
-	std::string command = "";
+    bool isCommandPallateOpen = false;
+    std::string command = "";
 
     SetTargetFPS(40);
 
@@ -79,9 +124,9 @@ int main() {
                     dragStartY = mouseY;
                 }
             }
-			if(mouseX < screenWidth - 10){
-				cursorY = scrollOffset + (int)(mouseY / lineHeight);
-			}
+            if (mouseX < screenWidth - 10) {
+                cursorY = scrollOffset + (int)(mouseY / lineHeight);
+            }
         }
 
         if (scrollbarDragging) {
@@ -91,143 +136,137 @@ int main() {
                 float mouseY = GetMouseY();
                 float deltaY = mouseY - dragStartY;
                 dragStartY = mouseY;
-                float scrollRatio = (float)text.size() / screenHeight;
-                scrollOffset = std::clamp(scrollOffset + (int)(deltaY * scrollRatio), 0, std::max(0, (int)text.size() - maxVisibleLines));
+                float scrollRatio = (float)state.text.size() / screenHeight;
+                scrollOffset = std::clamp(scrollOffset + (int)(deltaY * scrollRatio), 0, std::max(0, (int)state.text.size() - maxVisibleLines));
             }
         }
 
-		cursorY -= (int)GetMouseWheelMove() * 3;
-		if (cursorY < 0) cursorY = 0;
-		if (cursorY > text.size()) cursorY = text.size() - 1;
-
+        cursorY -= (int)GetMouseWheelMove() * 3;
+        if (cursorY < 0) cursorY = 0;
+        if (cursorY > state.text.size()) cursorY = state.text.size() - 1;
 
         if (cursorY < scrollOffset && !scrollbarDragging) {
             scrollOffset = cursorY;
-        } else if (cursorY >= scrollOffset + maxVisibleLines  && !scrollbarDragging) {
+        } else if (cursorY >= scrollOffset + maxVisibleLines && !scrollbarDragging) {
             scrollOffset = cursorY - maxVisibleLines + 1;
         }
-		
-		if (IsKeyPressed(KEY_ESCAPE)){
-			isCommandPallateOpen = !isCommandPallateOpen;
-			command = "";
-		}
 
-	if (IsKeyDown(KEY_BACKSPACE)) {
+        if (IsKeyPressed(KEY_F1)) {
+            isCommandPallateOpen = !isCommandPallateOpen;
+            command = "";
+        }
 
-		backspaceTime += GetFrameTime();
-		showCursor = true;
-		if (backspaceTime > keyHeldTime || !backspaceHeld) {
-			if(isCommandPallateOpen){
-				if (command.length() > 0) command.erase(command.length() - 1, 1);
-			}
-			else {
-				if (cursorX > 0) {
-					text[cursorY].erase(cursorX - 1, 1);
-					cursorX--;
-				} else if (cursorY > 0) {
-					cursorX = text[cursorY - 1].size();
-					text[cursorY - 1] += text[cursorY];
-					text.erase(text.begin() + cursorY);
-					cursorY--;
-				}
-			}
-			backspaceHeld = true;
-		}
+        if (IsKeyDown(KEY_BACKSPACE)) {
+            backspaceTime += GetFrameTime();
+            showCursor = true;
+            if (backspaceTime > keyHeldTime || !backspaceHeld) {
+                if (isCommandPallateOpen) {
+                    if (command.length() > 0) command.erase(command.length() - 1, 1);
+                } else {
+                    if (cursorX > 0) {
+                        state.text[cursorY].erase(cursorX - 1, 1);
+                        cursorX--;
+                    } else if (cursorY > 0) {
+                        cursorX = state.text[cursorY - 1].size();
+                        state.text[cursorY - 1] += state.text[cursorY];
+                        state.text.erase(state.text.begin() + cursorY);
+                        cursorY--;
+                    }
+                }
+                backspaceHeld = true;
+            }
+        } else {
+            backspaceTime = 0.0f;
+            backspaceHeld = false;
+        }
 
-	} else {
-		backspaceTime = 0.0f;
-		backspaceHeld = false;
-	}
+        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
+            showCursor = true;
+            arrowTime += GetFrameTime();
+            if (arrowTime > keyHeldTime || !arrowHeld) {
+                if (IsKeyDown(KEY_LEFT)) {
+                    if (cursorX > 0) cursorX--;
+                    else if (cursorY > 0) {
+                        cursorY--;
+                        cursorX = state.text[cursorY].size();
+                    }
+                } else if (IsKeyDown(KEY_RIGHT)) {
+                    if (cursorX < state.text[cursorY].size()) cursorX++;
+                    else if (cursorY < state.text.size() - 1) {
+                        cursorY++;
+                        cursorX = 0;
+                    }
+                } else if (IsKeyDown(KEY_UP)) {
+                    if (cursorY > 0) {
+                        cursorY--;
+                        cursorX = (cursorX > state.text[cursorY].size()) ? state.text[cursorY].size() : cursorX;
+                    }
+                } else if (IsKeyDown(KEY_DOWN)) {
+                    if (cursorY < state.text.size() - 1) {
+                        cursorY++;
+                        cursorX = (cursorX > state.text[cursorY].size()) ? state.text[cursorY].size() : cursorX;
+                    }
+                }
+                arrowHeld = true;
+            }
+        } else {
+            arrowTime = 0.0f;
+            arrowHeld = false;
+        }
 
-	if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
-		showCursor = true;
-		arrowTime += GetFrameTime();
-		if (arrowTime > keyHeldTime || !arrowHeld) {
-			if (IsKeyDown(KEY_LEFT)) {
-				if (cursorX > 0) cursorX--;
-				else if (cursorY > 0) {
-					cursorY--;
-					cursorX = text[cursorY].size();
-				}
-			} else if (IsKeyDown(KEY_RIGHT)) {
-				if (cursorX < text[cursorY].size()) cursorX++;
-				else if (cursorY < text.size() - 1) {
-					cursorY++;
-					cursorX = 0;
-				}
-			} else if (IsKeyDown(KEY_UP)) {
-				if (cursorY > 0) {
-					cursorY--;
-					cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
-				}
-			} else if (IsKeyDown(KEY_DOWN)) {
-				if (cursorY < text.size() - 1) {
-					cursorY++;
-					cursorX = (cursorX > text[cursorY].size()) ? text[cursorY].size() : cursorX;
-				}
-			}
-			arrowHeld = true;
-		}
-	} else {
-		arrowTime = 0.0f;
-		arrowHeld = false;
-	}
+        if (IsKeyPressed(KEY_ENTER)) {
+            if (isCommandPallateOpen) {
+                executeCommand(command);
+                command = "";
+                isCommandPallateOpen = false;
+            } else {
+                showCursor = true;
+                std::string remaining = state.text[cursorY].substr(cursorX);
+                state.text[cursorY] = state.text[cursorY].substr(0, cursorX);
+                state.text.insert(state.text.begin() + cursorY + 1, remaining);
+                cursorX = 0;
+                cursorY++;
+            }
+        }
 
-	if (IsKeyPressed(KEY_ENTER)) {
+        if (IsKeyPressed(KEY_TAB)) {
+            showCursor = true;
+            state.text[cursorY].insert(cursorX, "    ");
+            cursorX += 4;
+        }
 
-		if(isCommandPallateOpen){
-			executeCommand(command);
-			command = "";
-			isCommandPallateOpen = false;
-		}else{
-			showCursor = true;
-			std::string remaining = text[cursorY].substr(cursorX);
-			text[cursorY] = text[cursorY].substr(0, cursorX);
-			text.insert(text.begin() + cursorY + 1, remaining);
-			cursorX = 0;
-			cursorY++;
-		}
-	}
+        if (IsKeyPressed(KEY_F11)) {
+            showCursor = true;
+            isFullscreen = !isFullscreen;
+            if (isFullscreen) {
+                ToggleFullscreen();
+            } else {
+                SetWindowSize(screenWidth, screenHeight);
+                SetWindowPosition(100, 100);
+            }
+        }
 
-	if (IsKeyPressed(KEY_TAB)) {
-		showCursor = true;
-		text[cursorY].insert(cursorX, "    ");
-		cursorX += 4;
-	}
+        if (IsKeyPressed(KEY_F10)) {
+            showCursor = true;
+            MinimizeWindow();
+        }
 
-	if (IsKeyPressed(KEY_F11)) {
-		showCursor = true;
-		isFullscreen = !isFullscreen;
-		if (isFullscreen) {
-			ToggleFullscreen();
-		} else {
-			SetWindowSize(screenWidth, screenHeight);
-			SetWindowPosition(100, 100);
-		}
-	}
-
-	if (IsKeyPressed(KEY_F10)) {
-		showCursor = true;
-		MinimizeWindow();
-	}
-
-	int key = GetCharPressed();
-	while (key > 0) {
-		showCursor = true;
-		if (key >= 32 && key <= 126) {
-			showCursor = true;
-			if(isCommandPallateOpen){
-				command.insert(command.length(), 1, (char)key);
-			}else {
-				text[cursorY].insert(cursorX, 1, (char)key);
-				cursorX++;
-			}
-			float textWidth = MeasureTextEx(codeFont, text[cursorY].c_str(), fontSize, 1).x;
+        int key = GetCharPressed();
+        while (key > 0) {
+            showCursor = true;
+            if (key >= 32 && key <= 126) {
+                if (isCommandPallateOpen) {
+                    command.insert(command.length(), 1, (char)key);
+                } else {
+                    state.text[cursorY].insert(cursorX, 1, (char)key);
+                    cursorX++;
+                }
+                float textWidth = MeasureTextEx(codeFont, state.text[cursorY].c_str(), fontSize, 1).x;
 
                 if (textWidth > screenWidth - 50) {
-                    std::string remaining = text[cursorY].substr(cursorX);
-                    text[cursorY] = text[cursorY].substr(0, cursorX);
-                    text.insert(text.begin() + cursorY + 1, remaining);
+                    std::string remaining = state.text[cursorY].substr(cursorX);
+                    state.text[cursorY] = state.text[cursorY].substr(0, cursorX);
+                    state.text.insert(state.text.begin() + cursorY + 1, remaining);
                     cursorY++;
                     cursorX = 0;
                 }
@@ -236,52 +275,45 @@ int main() {
         }
 
         BeginDrawing();
-        ClearBackground((Color) {1, 31, 38 , 255});
+        ClearBackground((Color){1, 31, 38, 255});
 
-        DrawRectangle(0, 0, screenWidth, screenHeight, (Color) {1, 31, 38 , 255});
+        DrawRectangle(0, 0, screenWidth, screenHeight, (Color){1, 31, 38, 255});
 
-        scrollbarHeight = (float)screenHeight * maxVisibleLines / text.size();
-        scrollbarY = (float)scrollOffset / text.size() * screenHeight;
+        scrollbarHeight = (float)screenHeight * maxVisibleLines / state.text.size();
+        scrollbarY = (float)scrollOffset / state.text.size() * screenHeight;
 
         int startLine = scrollOffset;
-        int endLine = std::min(startLine + maxVisibleLines, (int)text.size());
+        int endLine = std::min(startLine + maxVisibleLines, (int)state.text.size());
 
         for (int i = startLine; i < endLine; i++) {
             if (i == cursorY) {
-                DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60, lineHeight, (Color){2 , 81, 89, 255});
+                DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60, lineHeight, (Color){2, 81, 89, 255});
             }
 
-            DrawTextEx(codeFont, TextFormat("%4d", i + 1), 
+            DrawTextEx(codeFont, TextFormat("%4d", i + 1),
                        (Vector2){5, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, GRAY);
-            DrawTextEx(codeFont, text[i].c_str(), 
-                       (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1,  LIGHTGRAY);
+            DrawTextEx(codeFont, state.text[i].c_str(),
+                       (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, LIGHTGRAY);
         }
 
         if (showCursor && !isCommandPallateOpen) {
-            float cursorDrawX = MeasureTextEx(codeFont, text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
+            float cursorDrawX = MeasureTextEx(codeFont, state.text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
             float cursorDrawY = (cursorY - scrollOffset) * lineHeight;
-            DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 4, WHITE);
+            DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 2, LIGHTGRAY);
         }
 
-        if (text.size() > maxVisibleLines) {
-            DrawRectangle(screenWidth - 10, 0, 10, screenHeight, (Color){2, 81, 89, 255});
-            DrawRectangle(screenWidth - 10, scrollbarY, 10, scrollbarHeight, LIGHTGRAY);
+        DrawRectangle(screenWidth - 10, 0, 10, screenHeight, GRAY);
+        DrawRectangle(screenWidth - 10, scrollbarY, 10, scrollbarHeight, WHITE);
+
+        if (isCommandPallateOpen) {
+            DrawRectangle(0, screenHeight - lineHeight, screenWidth, lineHeight, BLACK);
+            DrawTextEx(codeFont, command.c_str(), (Vector2){5, (float)(screenHeight - lineHeight + 2)}, fontSize, 1, LIGHTGRAY);
         }
-
-		if (isCommandPallateOpen){
-
-			Rectangle box = {(float)(screenWidth / 2 - 300), (float)(30), 600.0f, (float)fontSize};
-			DrawRectangleRounded(box, 0.1f, 10, LIGHTGRAY);
-            DrawTextEx(codeFont,command.c_str(), 
-                       (Vector2){10 + screenWidth/2 - 300.0f, 30.0f}, fontSize, 1,  BLACK);
-		}
 
         EndDrawing();
     }
 
-	file.close();
     UnloadFont(codeFont);
     CloseWindow();
-
     return 0;
 }
