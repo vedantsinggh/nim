@@ -7,16 +7,18 @@
 
 struct State {
 	std::string name; 
-	std::string filePath;
+	std::string filePath; //TODO: make separate definition for name and file path.
     std::vector<std::string> text;
-	bool isSaved;
+	bool isSaved; //TODO: warn users on exiting on unsaved files
 	bool isCommandPallateOpen;
+	bool shouldClose;
 };
 
 State state{
 	"",
 	"",
 	std::vector<std::string>(),
+	false,
 	false,
 	false,
 };
@@ -26,20 +28,25 @@ int save(std::string name){
 		name = state.filePath;
 	}
 
+	//TODO: catch errors
 	std::ofstream file(name,std::ios::out );
 	for(std::string line: state.text){
 		file << line << "\n";
 	}
-
+	file.close();
 	return 0;
 
 }
 
 int openAndScanFile(std::string path){
 	if (path == ""){
+		state.name = "New File";
+		state.filePath = "./untitled.txt";
 		state.text.push_back("");
 		return 0;
 	}
+
+	//TODO: catch errors
     std::ifstream file(path);
 	state.text.clear();
     std::string line = "";
@@ -52,6 +59,7 @@ int openAndScanFile(std::string path){
 	}
 
 	state.filePath = path;
+	state.name = path.substr(2);
 	file.close();
 	return 0;
 }
@@ -67,13 +75,21 @@ int executeCommand(std::string command) {
 		}
 	}
 
+	//TODO: inform user about completion of command
 	if (cmd == "open"){
-		std::cout << "opening " << command.substr(5) << "\n";
 		openAndScanFile(command.substr(5));
-	}else if("save"){
-		save("");
+	}else if(cmd == "save"){
+		if (command.length() > 5){
+			save(command.substr(5));
+			state.name = command.substr(5);
+			state.filePath = "./" + state.name;
+		}else{
+			save("");
+		}
+	}else if (cmd == "exit"){
+		state.shouldClose = true;
 	}else {
-		std::cout << "type properly bitch ass nigga\n";
+		//TODO: warn users about not getting the command right.
 	}
     return 0;
 }
@@ -108,7 +124,7 @@ int main(int argc, char* argv[]) {
     bool arrowHeld = false;
     float keyHeldTime = 0.3f;
 
-    Font codeFont = LoadFontEx("font.ttf", fontSize, 0, 0);
+    Font codeFont = LoadFontEx("./assets/font.ttf", fontSize, 0, 0);
     int lineHeight = fontSize + 5;
 
     int scrollOffset = 0;
@@ -122,13 +138,23 @@ int main(int argc, char* argv[]) {
     bool isCommandPallateOpen = false;
     std::string command = "";
 
+	//SECTION: COLORS
+	Color BackgroundColor = {20, 40, 50, 255};
+	Color ScrollBarColor  = {180, 180, 180, 255};
+	Color ScrollBarBackgroundColor  = {50, 50, 50, 255};
+	Color HighlightLineColor = {50, 80, 90, 180};
+	Color LineNumberColor = {150, 150, 150, 255};
+	Color TextColor = {200, 200, 200, 255};
+	Color CursorColor = {255, 255, 255, 255};
+
     SetTargetFPS(40);
 
-    while (!WindowShouldClose()) {
+    while (!state.shouldClose && !WindowShouldClose()) {
         screenWidth = GetScreenWidth();
         screenHeight = GetScreenHeight();
         maxVisibleLines = screenHeight / lineHeight;
 
+		SetWindowTitle(state.name.c_str());
         blinkTime += GetFrameTime();
         if (blinkTime >= 0.5f) {
             showCursor = !showCursor;
@@ -251,7 +277,7 @@ int main(int argc, char* argv[]) {
 
         if (IsKeyPressed(KEY_TAB)) {
             showCursor = true;
-            state.text[cursorY].insert(cursorX, "    ");
+            state.text[cursorY].insert(cursorX, "  ");
             cursorX += 4;
         }
 
@@ -294,43 +320,57 @@ int main(int argc, char* argv[]) {
             key = GetCharPressed();
         }
 
-        BeginDrawing();
-        ClearBackground((Color){1, 31, 38, 255});
+		BeginDrawing();
+		ClearBackground(BackgroundColor);  
 
-        DrawRectangle(0, 0, screenWidth, screenHeight, (Color){1, 31, 38, 255});
+		DrawRectangle(0, 0, screenWidth, screenHeight, BackgroundColor); 
 
-        scrollbarHeight = (float)screenHeight * maxVisibleLines / state.text.size();
-        scrollbarY = (float)scrollOffset / state.text.size() * screenHeight;
+		DrawRectangle(screenWidth - 12, 0, 12, screenHeight, ScrollBarBackgroundColor);  
+		scrollbarHeight = (float)screenHeight * maxVisibleLines / state.text.size();
+		scrollbarY = (float)scrollOffset / state.text.size() * screenHeight;
+		DrawRectangle(screenWidth - 12, scrollbarY, 12, scrollbarHeight, ScrollBarColor);  
 
-        int startLine = scrollOffset;
-        int endLine = std::min(startLine + maxVisibleLines, (int)state.text.size());
+		int startLine = scrollOffset;
+		int endLine = std::min(startLine + maxVisibleLines, (int)state.text.size());
 
-        for (int i = startLine; i < endLine; i++) {
-            if (i == cursorY) {
-                DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60, lineHeight, (Color){2, 81, 89, 255});
-            }
+		for (int i = startLine; i < endLine; i++) {
+			if (i == cursorY) {
+				DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60 - 12, lineHeight, HighlightLineColor);
+			}
 
-            DrawTextEx(codeFont, TextFormat("%4d", i + 1),
-                       (Vector2){5, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, GRAY);
-            DrawTextEx(codeFont, state.text[i].c_str(),
-                       (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, LIGHTGRAY);
-        }
+			DrawTextEx(codeFont, TextFormat("%4d", i + 1),
+					   (Vector2){5, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, LineNumberColor);
 
-        if (showCursor && !isCommandPallateOpen) {
-            float cursorDrawX = MeasureTextEx(codeFont, state.text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
-            float cursorDrawY = (cursorY - scrollOffset) * lineHeight;
-            DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 2, LIGHTGRAY);
-        }
+			DrawTextEx(codeFont, state.text[i].c_str(),
+					   (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, TextColor);
+		}
 
-        DrawRectangle(screenWidth - 10, 0, 10, screenHeight, GRAY);
-        DrawRectangle(screenWidth - 10, scrollbarY, 10, scrollbarHeight, WHITE);
+		if (showCursor && !isCommandPallateOpen) {
+			float cursorDrawX = MeasureTextEx(codeFont, state.text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
+			float cursorDrawY = (cursorY - scrollOffset) * lineHeight;
+			DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 2, CursorColor);  
+		}
 
-        if (isCommandPallateOpen) {
-            DrawRectangle(0, screenHeight - lineHeight, screenWidth, lineHeight, MAROON );
-            DrawTextEx(codeFont, command.c_str(), (Vector2){5, (float)(screenHeight - lineHeight + 2)}, fontSize, 1, LIGHTGRAY);
-        }
+		if (isCommandPallateOpen) {
+			Vector2 topLeft = {0, (float)screenHeight - lineHeight};
+			Vector2 bottomRight = {(float)screenWidth, (float)screenHeight};
+			DrawRectangleGradientV(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y, (Color){100, 30, 40, 255}, (Color){150, 50, 60, 255}); 
 
-        EndDrawing();
+			DrawTextEx(codeFont, command.c_str(), (Vector2){10, (float)(screenHeight - lineHeight + 5)}, fontSize, 1, LIGHTGRAY);
+
+			DrawRectangleLinesEx((Rectangle){0, (float)screenHeight - lineHeight, (float)screenWidth, (float)lineHeight}, 3, (Color){180, 100, 100, 255});  
+
+			std::vector<std::string> suggestions = {};
+			int selectedSuggestionIndex = 0;
+			for (size_t i = 0; i < suggestions.size(); ++i) {
+				Color suggestionColor = (i == selectedSuggestionIndex) ? (Color){255, 255, 255, 255} : (Color){200, 200, 200, 255};
+
+				DrawTextEx(codeFont, suggestions[i].c_str(), (Vector2){10, (float)(screenHeight - lineHeight * (i + 2))}, fontSize, 1, suggestionColor);
+			}
+		}
+
+		EndDrawing();
+
     }
 
     UnloadFont(codeFont);
