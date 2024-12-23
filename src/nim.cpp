@@ -4,157 +4,198 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <stdexcept>
 
-struct State {
-	std::string name; 
-	std::string filePath; //TODO: make separate definition for name and file path.
-    std::vector<std::string> text;
-	bool isSaved; //TODO: warn users on exiting on unsaved files
-	bool isCommandPallateOpen;
-	bool shouldClose;
+class EditorState {
+private:
+    std::string m_fileName;
+    std::string m_filePath;
+    std::vector<std::string> m_textContent;
+    bool m_isSaved;
+    bool m_isCommandPaletteOpen;
+    bool m_shouldClose;
+
+public:
+    EditorState() 
+        : m_fileName("")
+        , m_filePath("")
+        , m_textContent()
+        , m_isSaved(false)
+        , m_isCommandPaletteOpen(false)
+        , m_shouldClose(false) {}
+
+    const std::string& getFileName() const { return m_fileName; }
+    void setFileName(const std::string& name) { m_fileName = name; }
+    
+    const std::string& getFilePath() const { return m_filePath; }
+    void setFilePath(const std::string& path) { m_filePath = path; }
+    
+    std::vector<std::string>& getTextContent() { return m_textContent; }
+    const std::vector<std::string>& getTextContent() const { return m_textContent; }
+    
+    bool isSaved() const { return m_isSaved; }
+    void setSaved(bool saved) { m_isSaved = saved; }
+    
+    bool isCommandPaletteOpen() const { return m_isCommandPaletteOpen; }
+    void setCommandPaletteOpen(bool open) { m_isCommandPaletteOpen = open; }
+    
+    bool shouldClose() const { return m_shouldClose; }
+    void setShouldClose(bool close) { m_shouldClose = close; }
 };
 
-State state{
-	"",
-	"",
-	std::vector<std::string>(),
-	false,
-	false,
-	false,
-};
+EditorState g_editorState;
 
-int save(std::string name){
-	if (name == ""){
-		name = state.filePath;
-	}
+void saveFile(const std::string& fileName) {
+    std::string fileToSave = fileName.empty() ? g_editorState.getFilePath() : fileName;
+    
+    try {
+        std::ofstream file(fileToSave, std::ios::out);
+        if (!file) {
+            throw std::runtime_error("Failed to open file for writing: " + fileToSave);
+        }
 
-	//TODO: catch errors
-	std::ofstream file(name,std::ios::out );
-	for(std::string line: state.text){
-		file << line << "\n";
-	}
-	file.close();
-	return 0;
-
-}
-
-int openAndScanFile(std::string path){
-	if (path == ""){
-		state.name = "New File";
-		state.filePath = "./untitled.txt";
-		state.text.push_back("");
-		return 0;
-	}
-
-	//TODO: catch errors
-    std::ifstream file(path);
-	state.text.clear();
-    std::string line = "";
-    while (std::getline(file, line)) {
-        state.text.push_back(line);
+        const auto& content = g_editorState.getTextContent();
+        for (const auto& line : content) {
+            file << line << "\n";
+        }
+        g_editorState.setSaved(true);
+    } catch (const std::exception& e) {
+        std::cerr << "Error saving file: " << e.what() << std::endl;
     }
-
-	if (state.text.size() == 0){
-		state.text.push_back("");
-	}
-
-	state.filePath = path;
-	state.name = path.substr(2);
-	file.close();
-	return 0;
 }
 
+void openAndReadFile(const std::string& filePath) {
+    try {
+        if (filePath.empty()) {
+            g_editorState.setFileName("New File");
+            g_editorState.setFilePath("./untitled.txt");
+            g_editorState.getTextContent().clear();
+            g_editorState.getTextContent().push_back("");
+            return;
+        }
 
-int executeCommand(std::string command) {
-	std::string cmd = "";
-	for (char c : command){
-		if (c == 32){
-			break;
-		}else {
-			cmd.push_back(c);
-		}
-	}
+        std::ifstream inputFile(filePath);
+        if (!inputFile) {
+            throw std::runtime_error("Failed to open file for reading: " + filePath);
+        }
 
-	//TODO: inform user about completion of command
-	if (cmd == "open"){
-		openAndScanFile(command.substr(5));
-	}else if(cmd == "save"){
-		if (command.length() > 5){
-			save(command.substr(5));
-			state.name = command.substr(5);
-			state.filePath = "./" + state.name;
-		}else{
-			save("");
-		}
-	}else if (cmd == "exit"){
-		state.shouldClose = true;
-	}else {
-		//TODO: warn users about not getting the command right.
-	}
-    return 0;
+        std::vector<std::string> fileContent;
+        std::string currentLine;
+        while (std::getline(inputFile, currentLine)) {
+            fileContent.push_back(currentLine);
+        }
+
+        if (fileContent.empty()) {
+            fileContent.push_back("");
+        }
+
+        g_editorState.getTextContent() = std::move(fileContent);
+        g_editorState.setFilePath(filePath);
+        g_editorState.setFileName(filePath.substr(2));
+    } catch (const std::exception& e) {
+        std::cerr << "Error opening file: " << e.what() << std::endl;
+        openAndReadFile("");
+    }
 }
 
+std::pair<std::string, std::string> parseCommand(const std::string& commandString) {
+    size_t spacePos = commandString.find(' ');
+    if (spacePos == std::string::npos) {
+        return {commandString, ""};
+    }
+    return {
+        commandString.substr(0, spacePos),
+        commandString.substr(spacePos + 1)
+    };
+}
+
+void executeCommand(const std::string& command) {
+    auto [cmd, args] = parseCommand(command);
+
+    try {
+        if (cmd == "open") {
+            openAndReadFile(args);
+        } else if (cmd == "save") {
+            if (!args.empty()) {
+                saveFile(args);
+                g_editorState.setFileName(args);
+                g_editorState.setFilePath("./" + args);
+            } else {
+                saveFile("");
+            }
+        } else if (cmd == "exit") {
+            g_editorState.setShouldClose(true);
+        } else {
+            std::cerr << "Goffy ahh command! " << cmd << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Some fucky wacky happened" << e.what() << std::endl;
+    }
+}
+
+//TODO: make a configuration file and tuck in all editables in that
+struct EditorColors {
+    const Color backgroundColor{20, 40, 50, 255};
+    const Color scrollBarColor{180, 180, 180, 255};
+    const Color scrollBarBackgroundColor{50, 50, 50, 255};
+    const Color highlightLineColor{50, 80, 90, 180};
+    const Color lineNumberColor{150, 150, 150, 255};
+    const Color textColor{200, 200, 200, 255};
+    const Color cursorColor{255, 255, 255, 255};
+};
 
 int main(int argc, char* argv[]) {
-    int screenWidth = 800;
-    int screenHeight = 600;
+    constexpr int kInitialScreenWidth = 800;
+    constexpr int kInitialScreenHeight = 600;
+    constexpr int kFontSize = 22;
+    constexpr float kKeyHoldDelay = 0.3f;
+    constexpr int kLineSpacing = 5;
+    
     SetTraceLogLevel(LOG_NONE);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(screenWidth, screenHeight, "nim");
+    InitWindow(kInitialScreenWidth, kInitialScreenHeight, "nim");
     SetExitKey(KEY_NULL);
 
-	if(argc > 1){
-		openAndScanFile(argv[1]);
-	}else{
-		openAndScanFile("");
-	}
+    if (argc > 1) {
+        openAndReadFile(argv[1]);
+    } else {
+        openAndReadFile("");
+    }
 
-
-    int fontSize = 22;
     int cursorX = 0;
     int cursorY = 0;
     float blinkTime = 0.0f;
     bool showCursor = true;
-
     bool isFullscreen = false;
 
     float backspaceTime = 0.0f;
     bool backspaceHeld = false;
     float arrowTime = 0.0f;
     bool arrowHeld = false;
-    float keyHeldTime = 0.3f;
 
-    Font codeFont = LoadFontEx("./assets/font.ttf", fontSize, 0, 0);
-    int lineHeight = fontSize + 5;
+    Font codeFont = LoadFontEx("./assets/font.ttf", kFontSize, 0, 0); //TODO: fix development and installation asset load
+    int lineHeight = kFontSize + kLineSpacing;
 
     int scrollOffset = 0;
-    int maxVisibleLines = screenHeight / lineHeight;
+    int maxVisibleLines = kInitialScreenHeight / lineHeight;
 
     bool scrollbarDragging = false;
     float scrollbarY = 0;
     float scrollbarHeight = 0;
     float dragStartY = 0;
 
-    bool isCommandPallateOpen = false;
-    std::string command = "";
-
-	//SECTION: COLORS
-	Color BackgroundColor = {20, 40, 50, 255};
-	Color ScrollBarColor  = {180, 180, 180, 255};
-	Color ScrollBarBackgroundColor  = {50, 50, 50, 255};
-	Color HighlightLineColor = {50, 80, 90, 180};
-	Color LineNumberColor = {150, 150, 150, 255};
-	Color TextColor = {200, 200, 200, 255};
-	Color CursorColor = {255, 255, 255, 255};
+    std::string commandBuffer;
+    EditorColors colors;
 
     SetTargetFPS(40);
 
-    while (!state.shouldClose && !WindowShouldClose()) {
-        screenWidth = GetScreenWidth();
-        screenHeight = GetScreenHeight();
+    while (!g_editorState.shouldClose() && !WindowShouldClose()) {
+        int screenWidth = GetScreenWidth();
+        int screenHeight = GetScreenHeight();
         maxVisibleLines = screenHeight / lineHeight;
 
-		SetWindowTitle(state.name.c_str());
+        SetWindowTitle(g_editorState.getFileName().c_str());
+        
         blinkTime += GetFrameTime();
         if (blinkTime >= 0.5f) {
             showCursor = !showCursor;
@@ -164,6 +205,7 @@ int main(int argc, char* argv[]) {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             float mouseX = GetMouseX();
             float mouseY = GetMouseY();
+            
             if (mouseX > screenWidth - 10 && mouseX < screenWidth) {
                 if (mouseY > scrollbarY && mouseY < scrollbarY + scrollbarHeight) {
                     scrollbarDragging = true;
@@ -182,14 +224,15 @@ int main(int argc, char* argv[]) {
                 float mouseY = GetMouseY();
                 float deltaY = mouseY - dragStartY;
                 dragStartY = mouseY;
-                float scrollRatio = (float)state.text.size() / screenHeight;
-                scrollOffset = std::clamp(scrollOffset + (int)(deltaY * scrollRatio), 0, std::max(0, (int)state.text.size() - maxVisibleLines));
+                float scrollRatio = (float)g_editorState.getTextContent().size() / screenHeight;
+                scrollOffset = std::clamp(scrollOffset + (int)(deltaY * scrollRatio), 
+                                        0, 
+                                        std::max(0, (int)g_editorState.getTextContent().size() - maxVisibleLines));
             }
         }
 
         cursorY -= (int)GetMouseWheelMove() * 3;
-        if (cursorY < 0) cursorY = 0;
-        if (cursorY > state.text.size()) cursorY = state.text.size() - 1;
+        cursorY = std::clamp(cursorY, 0, (int)g_editorState.getTextContent().size() - 1);
 
         if (cursorY < scrollOffset && !scrollbarDragging) {
             scrollOffset = cursorY;
@@ -198,24 +241,27 @@ int main(int argc, char* argv[]) {
         }
 
         if (IsKeyPressed(KEY_F1)) {
-            isCommandPallateOpen = !isCommandPallateOpen;
-            command = "";
+            g_editorState.setCommandPaletteOpen(!g_editorState.isCommandPaletteOpen());
+            commandBuffer.clear();
         }
 
         if (IsKeyDown(KEY_BACKSPACE)) {
             backspaceTime += GetFrameTime();
             showCursor = true;
-            if (backspaceTime > keyHeldTime || !backspaceHeld) {
-                if (isCommandPallateOpen) {
-                    if (command.length() > 0) command.erase(command.length() - 1, 1);
+            if (backspaceTime > kKeyHoldDelay || !backspaceHeld) {
+                if (g_editorState.isCommandPaletteOpen()) {
+                    if (!commandBuffer.empty()) {
+                        commandBuffer.pop_back();
+                    }
                 } else {
+                    auto& content = g_editorState.getTextContent();
                     if (cursorX > 0) {
-                        state.text[cursorY].erase(cursorX - 1, 1);
+                        content[cursorY].erase(cursorX - 1, 1);
                         cursorX--;
                     } else if (cursorY > 0) {
-                        cursorX = state.text[cursorY - 1].size();
-                        state.text[cursorY - 1] += state.text[cursorY];
-                        state.text.erase(state.text.begin() + cursorY);
+                        cursorX = content[cursorY - 1].size();
+                        content[cursorY - 1] += content[cursorY];
+                        content.erase(content.begin() + cursorY);
                         cursorY--;
                     }
                 }
@@ -229,28 +275,29 @@ int main(int argc, char* argv[]) {
         if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_DOWN)) {
             showCursor = true;
             arrowTime += GetFrameTime();
-            if (arrowTime > keyHeldTime || !arrowHeld) {
+            if (arrowTime > kKeyHoldDelay || !arrowHeld) {
+                auto& content = g_editorState.getTextContent();
                 if (IsKeyDown(KEY_LEFT)) {
                     if (cursorX > 0) cursorX--;
                     else if (cursorY > 0) {
                         cursorY--;
-                        cursorX = state.text[cursorY].size();
+                        cursorX = content[cursorY].size();
                     }
                 } else if (IsKeyDown(KEY_RIGHT)) {
-                    if (cursorX < state.text[cursorY].size()) cursorX++;
-                    else if (cursorY < state.text.size() - 1) {
+                    if (cursorX < content[cursorY].size()) cursorX++;
+                    else if (cursorY < content.size() - 1) {
                         cursorY++;
                         cursorX = 0;
                     }
                 } else if (IsKeyDown(KEY_UP)) {
                     if (cursorY > 0) {
                         cursorY--;
-                        cursorX = (cursorX > state.text[cursorY].size()) ? state.text[cursorY].size() : cursorX;
+                        cursorX = std::min(cursorX, (int)content[cursorY].size());
                     }
                 } else if (IsKeyDown(KEY_DOWN)) {
-                    if (cursorY < state.text.size() - 1) {
+                    if (cursorY < content.size() - 1) {
                         cursorY++;
-                        cursorX = (cursorX > state.text[cursorY].size()) ? state.text[cursorY].size() : cursorX;
+                        cursorX = std::min(cursorX, (int)content[cursorY].size());
                     }
                 }
                 arrowHeld = true;
@@ -261,15 +308,16 @@ int main(int argc, char* argv[]) {
         }
 
         if (IsKeyPressed(KEY_ENTER)) {
-            if (isCommandPallateOpen) {
-                executeCommand(command);
-                command = "";
-                isCommandPallateOpen = false;
+            if (g_editorState.isCommandPaletteOpen()) {
+                executeCommand(commandBuffer);
+                commandBuffer.clear();
+                g_editorState.setCommandPaletteOpen(false);
             } else {
                 showCursor = true;
-                std::string remaining = state.text[cursorY].substr(cursorX);
-                state.text[cursorY] = state.text[cursorY].substr(0, cursorX);
-                state.text.insert(state.text.begin() + cursorY + 1, remaining);
+                auto& content = g_editorState.getTextContent();
+                std::string remaining = content[cursorY].substr(cursorX);
+                content[cursorY] = content[cursorY].substr(0, cursorX);
+                content.insert(content.begin() + cursorY + 1, remaining);
                 cursorX = 0;
                 cursorY++;
             }
@@ -277,8 +325,8 @@ int main(int argc, char* argv[]) {
 
         if (IsKeyPressed(KEY_TAB)) {
             showCursor = true;
-            state.text[cursorY].insert(cursorX, "  ");
-            cursorX += 4;
+            g_editorState.getTextContent()[cursorY].insert(cursorX, "  "); //TODO: fix default tab value from raylib that is two. I want it four
+            cursorX += 2;
         }
 
         if (IsKeyPressed(KEY_F11)) {
@@ -301,76 +349,126 @@ int main(int argc, char* argv[]) {
         while (key > 0) {
             showCursor = true;
             if (key >= 32 && key <= 126) {
-                if (isCommandPallateOpen) {
-                    command.insert(command.length(), 1, (char)key);
+                if (g_editorState.isCommandPaletteOpen()) {
+                    commandBuffer += (char)key;
                 } else {
-                    state.text[cursorY].insert(cursorX, 1, (char)key);
+                    auto content = g_editorState.getTextContent();
+                    content[cursorY].insert(cursorX, 1, (char)key);
                     cursorX++;
-                }
-                float textWidth = MeasureTextEx(codeFont, state.text[cursorY].c_str(), fontSize, 1).x;
 
-                if (textWidth > screenWidth - 50) {
-                    std::string remaining = state.text[cursorY].substr(cursorX);
-                    state.text[cursorY] = state.text[cursorY].substr(0, cursorX);
-                    state.text.insert(state.text.begin() + cursorY + 1, remaining);
-                    cursorY++;
-                    cursorX = 0;
+                    float textWidth = MeasureTextEx(codeFont, content[cursorY].c_str(), kFontSize, 1).x;
+                    if (textWidth > screenWidth - 50) {
+                        std::string remaining = content[cursorY].substr(cursorX);
+                        content[cursorY] = content[cursorY].substr(0, cursorX);
+                        content.insert(content.begin() + cursorY + 1, remaining);
+                        cursorY++;
+                        cursorX = 0;
+                    }
                 }
             }
             key = GetCharPressed();
         }
+        BeginDrawing();
+        ClearBackground(colors.backgroundColor);
 
-		BeginDrawing();
-		ClearBackground(BackgroundColor);  
+        DrawRectangle(0, 0, screenWidth, screenHeight, colors.backgroundColor);
 
-		DrawRectangle(0, 0, screenWidth, screenHeight, BackgroundColor); 
+        DrawRectangle(screenWidth - 12, 0, 12, screenHeight, colors.scrollBarBackgroundColor);
 
-		DrawRectangle(screenWidth - 12, 0, 12, screenHeight, ScrollBarBackgroundColor);  
-		scrollbarHeight = (float)screenHeight * maxVisibleLines / state.text.size();
-		scrollbarY = (float)scrollOffset / state.text.size() * screenHeight;
-		DrawRectangle(screenWidth - 12, scrollbarY, 12, scrollbarHeight, ScrollBarColor);  
+        const auto& content = g_editorState.getTextContent();
+        scrollbarHeight = (float)screenHeight * maxVisibleLines / content.size();
+        scrollbarY = (float)scrollOffset / content.size() * screenHeight;
 
-		int startLine = scrollOffset;
-		int endLine = std::min(startLine + maxVisibleLines, (int)state.text.size());
+        DrawRectangle(screenWidth - 12, scrollbarY, 12, scrollbarHeight, colors.scrollBarColor);
 
-		for (int i = startLine; i < endLine; i++) {
-			if (i == cursorY) {
-				DrawRectangle(50, (i - scrollOffset) * lineHeight, screenWidth - 60 - 12, lineHeight, HighlightLineColor);
-			}
+        int startLine = scrollOffset;
+        int endLine = std::min(startLine + maxVisibleLines, (int)content.size());
 
-			DrawTextEx(codeFont, TextFormat("%4d", i + 1),
-					   (Vector2){5, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, LineNumberColor);
+        for (int lineNum = startLine; lineNum < endLine; lineNum++) {
+            const int lineY = (lineNum - scrollOffset) * lineHeight;
 
-			DrawTextEx(codeFont, state.text[i].c_str(),
-					   (Vector2){50, (float)(i - scrollOffset) * lineHeight}, fontSize, 1, TextColor);
-		}
+            if (lineNum == cursorY) {
+                DrawRectangle(50, lineY, screenWidth - 60 - 12, lineHeight, 
+                            colors.highlightLineColor);
+            }
 
-		if (showCursor && !isCommandPallateOpen) {
-			float cursorDrawX = MeasureTextEx(codeFont, state.text[cursorY].substr(0, cursorX).c_str(), fontSize, 1).x;
-			float cursorDrawY = (cursorY - scrollOffset) * lineHeight;
-			DrawRectangle(50 + cursorDrawX, cursorDrawY + 2, 2, fontSize - 2, CursorColor);  
-		}
+            DrawTextEx(codeFont, 
+                      TextFormat("%4d", lineNum + 1),
+                      (Vector2){5, (float)lineY}, 
+                      kFontSize, 
+                      1, 
+                      colors.lineNumberColor);
 
-		if (isCommandPallateOpen) {
-			Vector2 topLeft = {0, (float)screenHeight - lineHeight};
-			Vector2 bottomRight = {(float)screenWidth, (float)screenHeight};
-			DrawRectangleGradientV(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y, (Color){100, 30, 40, 255}, (Color){150, 50, 60, 255}); 
+            DrawTextEx(codeFont, 
+                      content[lineNum].c_str(),
+                      (Vector2){50, (float)lineY}, 
+                      kFontSize, 
+                      1, 
+                      colors.textColor);
+        }
 
-			DrawTextEx(codeFont, command.c_str(), (Vector2){10, (float)(screenHeight - lineHeight + 5)}, fontSize, 1, LIGHTGRAY);
+        if (showCursor && !g_editorState.isCommandPaletteOpen()) {
+            float cursorDrawX = MeasureTextEx(codeFont, 
+                                            content[cursorY].substr(0, cursorX).c_str(), 
+                                            kFontSize, 
+                                            1).x;
+            float cursorDrawY = (cursorY - scrollOffset) * lineHeight;
+            DrawRectangle(50 + cursorDrawX, 
+                         cursorDrawY + 2, 
+                         2, 
+                         kFontSize - 2, 
+                         colors.cursorColor);
+        }
 
-			DrawRectangleLinesEx((Rectangle){0, (float)screenHeight - lineHeight, (float)screenWidth, (float)lineHeight}, 3, (Color){180, 100, 100, 255});  
+        if (g_editorState.isCommandPaletteOpen()) {
+            Vector2 topLeft = {0, (float)screenHeight - lineHeight};
+            Vector2 bottomRight = {(float)screenWidth, (float)screenHeight};
+            
+            constexpr Color kCommandPaletteGradientTop = {100, 30, 40, 255};
+            constexpr Color kCommandPaletteGradientBottom = {150, 50, 60, 255};
+            DrawRectangleGradientV(topLeft.x, 
+                                 topLeft.y, 
+                                 bottomRight.x, 
+                                 bottomRight.y, 
+                                 kCommandPaletteGradientTop, 
+                                 kCommandPaletteGradientBottom);
 
-			std::vector<std::string> suggestions = {};
-			int selectedSuggestionIndex = 0;
-			for (size_t i = 0; i < suggestions.size(); ++i) {
-				Color suggestionColor = (i == selectedSuggestionIndex) ? (Color){255, 255, 255, 255} : (Color){200, 200, 200, 255};
+            DrawTextEx(codeFont, 
+                      commandBuffer.c_str(), 
+                      (Vector2){10, (float)(screenHeight - lineHeight + 5)}, 
+                      kFontSize, 
+                      1, 
+                      LIGHTGRAY);
 
-				DrawTextEx(codeFont, suggestions[i].c_str(), (Vector2){10, (float)(screenHeight - lineHeight * (i + 2))}, fontSize, 1, suggestionColor);
-			}
-		}
+            constexpr Color kCommandPaletteBorderColor = {180, 100, 100, 255};
+            DrawRectangleLinesEx(
+                (Rectangle){
+                    0, 
+                    (float)screenHeight - lineHeight, 
+                    (float)screenWidth, 
+                    (float)lineHeight
+                }, 
+                3, 
+                kCommandPaletteBorderColor);
 
-		EndDrawing();
+            const std::vector<std::string> suggestions; //TODO: implement suggestions and completion.
+            const int selectedSuggestionIndex = 0;
 
+            for (size_t i = 0; i < suggestions.size(); ++i) {
+                Color suggestionColor = (i == selectedSuggestionIndex) 
+                    ? Color{255, 255, 255, 255} 
+                    : Color{200, 200, 200, 255};
+
+                DrawTextEx(codeFont, 
+                          suggestions[i].c_str(), 
+                          (Vector2){10, (float)(screenHeight - lineHeight * (i + 2))}, 
+                          kFontSize, 
+                          1, 
+                          suggestionColor);
+            }
+        }
+
+        EndDrawing();
     }
 
     UnloadFont(codeFont);
