@@ -1,5 +1,5 @@
-CC = g++
-CFLAGS = -Iinclude -Llib
+CC = g++ 
+CFLAGS = -Iinclude -Llib -std=c++17 -g
 LIBS = -lraylib
 SRC = src/nim.cpp
 OUT = nim
@@ -7,7 +7,7 @@ INSTALL_DIR = /usr/local/bin
 ASSETS_DIR = /usr/share/nim
 
 all:
-	$(CC) $(CFLAGS) $(SRC) -o $(OUT) $(LIBS)
+	$(CC) $(CFLAGS) $(SRC) -o $(OUT) $(LIBS) -ldl -pthread 
 
 install: all
 	mkdir -p $(ASSETS_DIR)
