@@ -352,7 +352,7 @@ int main(int argc, char* argv[]) {
                 if (g_editorState.isCommandPaletteOpen()) {
                     commandBuffer += (char)key;
                 } else {
-                    auto content = g_editorState.getTextContent();
+                    auto& content = g_editorState.getTextContent();
                     content[cursorY].insert(cursorX, 1, (char)key);
                     cursorX++;
 
