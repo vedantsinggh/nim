@@ -28,7 +28,11 @@ Nim is a lightweight, minimalistic, and efficient text editor built using the Ra
    git clone https://github.com/vedantsinggh/nim.git
    cd nim
    ```
-2. Build the project:
+2. Install Raylib on your system:
+   ```bash
+   ./install.sh
+   ```
+3. Build the project:
    ```bash
    make
    ```
