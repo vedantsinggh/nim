@@ -1,4 +1,6 @@
 nim
 *.o
 build/
+include/raylib.h
+lib/libraylib.a
 
